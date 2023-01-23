@@ -1,8 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -19,16 +20,8 @@ namespace FsccProxy
             _logger = logger;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-                await Task.Delay(1000, stoppingToken);
-            }
-        }
         //https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.tcplistener?view=net-7.0
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             TcpListener server = null;
             try
@@ -46,7 +39,7 @@ namespace FsccProxy
                 {
                     Console.Write("Waiting for a connection... ");
 
-                    using TcpClient client = server.AcceptTcpClient();
+                    using TcpClient client = await server.AcceptTcpClientAsync(stoppingToken);
                     Console.WriteLine("Connected!");
 
                     data = null;
@@ -54,7 +47,7 @@ namespace FsccProxy
                     NetworkStream stream = client.GetStream();
 
                     int i;
-                    while ((i = stream.Read(bytes, 0, bytes.Length)) != 0)
+                    while ((i = await stream.ReadAsync(bytes, 0, bytes.Length, stoppingToken)) != 0)
                     {
                         // Translate data bytes to a ASCII string.
                         data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
@@ -63,9 +56,11 @@ namespace FsccProxy
                         // Process the data sent by the client.
                         data = data.ToUpper();
 
-                        byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
+                        //byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
 
-                        // TODO: make a fscc call and send back the response
+                        //var fsccResponse = await GetFsccResponseAsync(data);
+                        var fsccResponse = "Pong";
+                        byte[] msg = Encoding.ASCII.GetBytes(fsccResponse);
 
                         // Send back a response.
                         stream.Write(msg, 0, msg.Length);
@@ -77,6 +72,29 @@ namespace FsccProxy
             {
                 Console.WriteLine(ex);
                 throw;
+            }
+        }
+
+        private async Task<string> GetFsccResponseAsync(string url)
+        {
+            using HttpClient httpClient = new();
+            var msg = new HttpRequestMessage(HttpMethod.Get, url);
+            msg.Headers.Add("ContentType", "text/xml; encoding='utf-8'");
+            var res = await httpClient.SendAsync(msg);
+            return await res.Content.ReadAsStringAsync();
+
+
+            HttpWebRequest request = null;
+            HttpWebResponse response = null;
+            request = (HttpWebRequest)HttpWebRequest.Create(url);
+            request.Method = "GET";
+            request.ContentType = "text/xml; encoding='utf-8'";
+
+            response = (HttpWebResponse)request.GetResponse();
+            using (Stream stream = response.GetResponseStream())
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                return reader.ReadToEnd();
             }
         }
     }

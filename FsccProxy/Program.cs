@@ -1,12 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace FsccProxy
 {
+    //https://learn.microsoft.com/en-us/dotnet/core/extensions/windows-service
     public class Program
     {
         public static void Main(string[] args)
@@ -16,6 +13,13 @@ namespace FsccProxy
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .ConfigureServices((hostContext, services) => { services.AddHostedService<Worker>(); });
+                .UseWindowsService(options =>
+                {
+                    options.ServiceName = "fscc proxy";
+                })
+                .ConfigureServices((hostContext, services) =>
+                {
+                    services.AddHostedService<Worker>();
+                });
     }
 }
