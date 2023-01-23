@@ -6,22 +6,13 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace FsccProxy
 {
-    public class Worker : BackgroundService
+    public static class Worker
     {
-        private readonly ILogger<Worker> _logger;
-
-        public Worker(ILogger<Worker> logger)
-        {
-            _logger = logger;
-        }
-
         //https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.tcplistener?view=net-7.0
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public static async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             TcpListener server = null;
             try
@@ -47,22 +38,18 @@ namespace FsccProxy
                     NetworkStream stream = client.GetStream();
 
                     int i;
-                    while ((i = await stream.ReadAsync(bytes, 0, bytes.Length, stoppingToken)) != 0)
+                    while ((i = await stream.ReadAsync(bytes, stoppingToken)) != 0)
                     {
                         // Translate data bytes to a ASCII string.
                         data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
                         Console.WriteLine("Received: {0}", data);
 
-                        // Process the data sent by the client.
                         data = data.ToUpper();
-
-                        //byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
 
                         //var fsccResponse = await GetFsccResponseAsync(data);
                         var fsccResponse = "Pong";
                         byte[] msg = Encoding.ASCII.GetBytes(fsccResponse);
 
-                        // Send back a response.
                         stream.Write(msg, 0, msg.Length);
                         Console.WriteLine("Sent: {0}", data);
                     }
@@ -71,11 +58,10 @@ namespace FsccProxy
             catch (SocketException ex)
             {
                 Console.WriteLine(ex);
-                throw;
             }
         }
 
-        private async Task<string> GetFsccResponseAsync(string url)
+        private static async Task<string> GetFsccResponseAsync(string url)
         {
             using HttpClient httpClient = new();
             var msg = new HttpRequestMessage(HttpMethod.Get, url);
