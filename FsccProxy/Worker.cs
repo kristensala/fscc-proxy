@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -11,14 +10,13 @@ namespace FsccProxy
 {
     public static class Worker
     {
-        //https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.tcplistener?view=net-7.0
         public static async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             TcpListener server = null;
             try
             {
                 int port = 6123;
-                IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
+                IPAddress ipAddress = IPAddress.Parse("217.159.185.135");
 
                 server = new TcpListener(ipAddress, port);
                 server.Start();
@@ -40,18 +38,25 @@ namespace FsccProxy
                     int i;
                     while ((i = await stream.ReadAsync(bytes, stoppingToken)) != 0)
                     {
-                        // Translate data bytes to a ASCII string.
                         data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
                         Console.WriteLine("Received: {0}", data);
 
-                        data = data.ToUpper();
-
-                        //var fsccResponse = await GetFsccResponseAsync(data);
-                        var fsccResponse = "Pong";
-                        byte[] msg = Encoding.ASCII.GetBytes(fsccResponse);
-
-                        stream.Write(msg, 0, msg.Length);
-                        Console.WriteLine("Sent: {0}", data);
+                        string response = String.Empty;
+                        try
+                        {
+                            response = await GetFsccResponseAsync(data);
+                        }
+                        catch (UriFormatException ex)
+                        {
+							// for some reason I actually get the response and right after
+							// a UriFormatException for some reason, so lets just ignore it
+                            Console.WriteLine(ex);
+                        }
+                        finally
+                        {
+                            byte[] msg = Encoding.ASCII.GetBytes(response);
+                            stream.Write(msg, 0, msg.Length);
+                        }
                     }
                 }
             }
@@ -63,16 +68,12 @@ namespace FsccProxy
 
         private static async Task<string> GetFsccResponseAsync(string url)
         {
-            using HttpClient httpClient = new();
-            var msg = new HttpRequestMessage(HttpMethod.Get, url);
-            msg.Headers.Add("ContentType", "text/xml; encoding='utf-8'");
-            var res = await httpClient.SendAsync(msg);
-            return await res.Content.ReadAsStringAsync();
-
-
             HttpWebRequest request = null;
             HttpWebResponse response = null;
-            request = (HttpWebRequest)HttpWebRequest.Create(url);
+
+			Console.WriteLine(url);
+
+            request = (HttpWebRequest)HttpWebRequest.Create(new Uri(url));
             request.Method = "GET";
             request.ContentType = "text/xml; encoding='utf-8'";
 
